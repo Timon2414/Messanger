@@ -1,0 +1,6 @@
+{
+  "name": "@dasheu/eslint-config",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": { "build": "echo ok", "typecheck": "echo ok", "lint": "echo ok", "test": "echo ok" }
+}
