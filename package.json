@@ -1,0 +1,21 @@
+{
+  "name": "dasheu-chat",
+  "private": true,
+  "packageManager": "pnpm@10.10.0",
+  "scripts": {
+    "dev": "turbo run dev --parallel",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "format": "prettier --write .",
+    "db:generate": "pnpm --filter @dasheu/api prisma:generate",
+    "db:migrate": "pnpm --filter @dasheu/api prisma:migrate",
+    "db:seed": "pnpm --filter @dasheu/api seed"
+  },
+  "devDependencies": {
+    "prettier": "^3.3.3",
+    "turbo": "^2.1.1",
+    "typescript": "^5.6.2"
+  }
+}

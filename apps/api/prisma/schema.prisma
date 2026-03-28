@@ -1,0 +1,253 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum AppRole {
+  owner
+  superadmin
+  moderator
+  support
+  user
+}
+
+enum ChatType {
+  direct
+  group
+  channel
+}
+
+enum ChatMemberRole {
+  owner
+  admin
+  member
+  subscriber
+}
+
+enum ReceiptStatus {
+  sent
+  delivered
+  read
+}
+
+model User {
+  id                     String   @id @default(uuid())
+  username               String   @unique
+  passwordHash           String
+  role                   AppRole  @default(user)
+  isActive               Boolean  @default(true)
+  mustChangePassword     Boolean  @default(true)
+  lastSeenAt             DateTime?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+  deletedAt              DateTime?
+
+  profile                UserProfile?
+  sessions               Session[]
+  chatMembers            ChatMember[]
+  messages               Message[]
+  messageEdits           MessageEditHistory[]
+  receipts               MessageReceipt[]
+  reactions              Reaction[]
+  notificationSubs       NotificationSubscription[]
+  auditActor             AuditLog[] @relation("AuditActor")
+  auditTarget            AuditLog[] @relation("AuditTarget")
+  reportsFiled           Report[] @relation("ReportReporter")
+  reportsTargeted        Report[] @relation("ReportTarget")
+}
+
+model UserProfile {
+  id          String  @id @default(uuid())
+  userId       String  @unique
+  displayName  String
+  bio          String?
+  avatarUrl    String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Session {
+  id              String   @id @default(uuid())
+  userId           String
+  refreshTokenHash String
+  userAgent        String?
+  ipAddress        String?
+  deviceName       String?
+  expiresAt        DateTime
+  revokedAt        DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Chat {
+  id                String   @id @default(uuid())
+  type              ChatType
+  title             String?
+  description       String?
+  avatarUrl         String?
+  isArchived        Boolean  @default(false)
+  isDisabled        Boolean  @default(false)
+  pinnedMessageId   String?
+  lastMessageAt     DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  members           ChatMember[]
+  messages          Message[]
+
+  @@index([lastMessageAt])
+}
+
+model ChatMember {
+  id                String   @id @default(uuid())
+  chatId            String
+  userId            String
+  role              ChatMemberRole @default(member)
+  joinedAt          DateTime @default(now())
+  mutedUntil        DateTime?
+  draftText         String?
+  isPinned          Boolean @default(false)
+  unreadCount       Int @default(0)
+
+  chat Chat @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([chatId, userId])
+  @@index([userId])
+}
+
+model Message {
+  id               String   @id @default(uuid())
+  chatId            String
+  senderId          String
+  text              String?
+  replyToMessageId  String?
+  forwardedFromId   String?
+  deletedForAllAt   DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  chat Chat @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  sender User @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  attachments Attachment[]
+  edits MessageEditHistory[]
+  receipts MessageReceipt[]
+  reactions Reaction[]
+
+  @@index([chatId, createdAt])
+}
+
+model MessageEditHistory {
+  id           String   @id @default(uuid())
+  messageId     String
+  editorId      String
+  previousText  String?
+  createdAt     DateTime @default(now())
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  editor User @relation(fields: [editorId], references: [id], onDelete: Cascade)
+
+  @@index([messageId])
+}
+
+model MessageReceipt {
+  id           String   @id @default(uuid())
+  messageId     String
+  userId        String
+  status        ReceiptStatus @default(sent)
+  updatedAt     DateTime @updatedAt
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])
+}
+
+model Reaction {
+  id            String   @id @default(uuid())
+  messageId      String
+  userId         String
+  emoji          String
+  createdAt      DateTime @default(now())
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId, emoji])
+}
+
+model Attachment {
+  id              String   @id @default(uuid())
+  messageId        String
+  uploadedById     String
+  objectKey        String
+  originalName     String
+  mimeType         String
+  sizeBytes        Int
+  createdAt        DateTime @default(now())
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+}
+
+model NotificationSubscription {
+  id         String   @id @default(uuid())
+  userId      String
+  endpoint    String   @unique
+  p256dh      String
+  auth        String
+  userAgent   String?
+  createdAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model AuditLog {
+  id            String   @id @default(uuid())
+  actorId        String?
+  targetUserId   String?
+  action         String
+  details        Json?
+  ipAddress      String?
+  createdAt      DateTime @default(now())
+
+  actor User? @relation("AuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+  targetUser User? @relation("AuditTarget", fields: [targetUserId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+}
+
+model Report {
+  id             String   @id @default(uuid())
+  reporterId      String
+  targetUserId    String?
+  targetChatId    String?
+  targetMessageId String?
+  reason          String
+  note            String?
+  resolvedAt      DateTime?
+  createdAt       DateTime @default(now())
+
+  reporter User @relation("ReportReporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  targetUser User? @relation("ReportTarget", fields: [targetUserId], references: [id], onDelete: SetNull)
+
+  @@index([resolvedAt])
+}
+
+model AppSetting {
+  key         String   @id
+  value       Json
+  updatedById String?
+  updatedAt   DateTime @updatedAt
+}
